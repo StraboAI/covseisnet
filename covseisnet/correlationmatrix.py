@@ -51,8 +51,8 @@ class CorrelationMatrix(np.ndarray):
         return gaussian_filter1d(self, sigma, axis=0, **kwargs).view(CorrelationMatrix)
 
     def bandpass(self, low_cut, high_cut, sampling_rate, **kwargs):
-        """Apply a Butterworth bandpass filter to the correlation matrix. Uses
-        :func:`~scipy.signal.butter` and :func:`~scipy.signal.filtfilt`.
+        """Apply a zero-phase Butterworth bandpass filter to the correlation
+        matrix. Uses :func:`~scipy.signal.butter` and :func:`~scipy.signal.filtfilt`.
 
         Parameters
         ----------
@@ -73,7 +73,10 @@ class CorrelationMatrix(np.ndarray):
         # design filter
         order = 4
         low = low_cut / nyquist
-        high = high_cut / nyquist - 0.1
+        high = high_cut / nyquist
+        if high > 0.99 * nyquist:
+            # if high == nyquist, later versions of scipy will raise an error
+            high = 0.99 * nyquist
         b, a = butter(order, [low, high], btype="band", **kwargs)
 
         filtered = np.zeros(self.shape)
