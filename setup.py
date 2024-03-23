@@ -18,7 +18,7 @@ with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
 try:
     version = os.environ["CI_COMMIT_TAG"]
 except KeyError:
-    version = "0.x.x"
+    version = "2.0.0dev"
 
 
 # Arguments marked as "Required" below must be included for upload to PyPI.
