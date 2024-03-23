@@ -269,8 +269,14 @@ def whiten(
     smooth_length=11,
     smooth_order=1,
     epsilon=1e-10,
+    overlap=0.5,
+    **kwargs
 ):
-    r"""Normalize in the spectral domain."""
+    r"""Normalize in the spectral domain.
+
+    Extra key-word arguments are passed to `scipy.signal.stft`.
+
+    """
     if method == "onebit":
         whiten_method = phase
     elif method == "smooth":
@@ -281,13 +287,19 @@ def whiten(
         raise ValueError("Unknown method {}".format(method))
     r"""Whiten traces in the spectral domain."""
     fft_size = int(window_duration_sec * stream[0].stats.sampling_rate)
+    initial_size = stream[0].stats.npts
+    noverlap = int(overlap * fft_size)
+    if "noverlap" not in kwargs:
+        kwargs["noverlap"] = noverlap
     for index, trace in enumerate(stream):
         data = trace.data
-        _, _, data_fft = signal.stft(data, nperseg=fft_size)
+        _, _, data_fft = signal.stft(data, nperseg=fft_size, **kwargs)
         data_fft = whiten_method(data_fft)
-        _, data = signal.istft(data_fft, nperseg=fft_size)
-        trace.data = data
-    pass
+        _, data = signal.istft(data_fft, nperseg=fft_size, **kwargs)
+        # stft might be padding the signal with zeros if the last
+        # sliding window falls out of the time series
+        trace.data = data[:initial_size]
+    return
 
 
 def detrend_spectrum(x, smooth=None, order=None, epsilon=1e-10):
@@ -381,14 +393,17 @@ def normalize(stream, method="onebit", smooth_length=11, smooth_order=1, epsilon
             trace.data = trace.data / (trace_env_smooth + epsilon)
 
     elif method == "mad":
+        try:
+            from scipy.stats import median_abs_deviation as scimad
+        except ImportError:
+            from scipy.stats import median_absolute_deviation as scimad
         for trace in stream:
             trace.data = trace.data / (
-                stats.median_absolute_deviation(trace.data) + epsilon
+                scimad(trace.data) + epsilon
             )
 
     else:
         raise ValueError("Unknown method {}".format(method))
-
 
 def phase(x):
     r"""Complex phase extraction.
