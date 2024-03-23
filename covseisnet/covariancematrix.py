@@ -248,7 +248,7 @@ class CovarianceMatrix(np.ndarray):
         return self[..., trii, trij]
 
 
-def calculate(stream, window_duration_sec, average, average_step=None, **kwargs):
+def calculate(stream, window_duration_sec, num_averaging_win, average_step=None, **kwargs):
     """Calculate covariance matrix from the streams.
 
     Arguments
@@ -261,8 +261,8 @@ def calculate(stream, window_duration_sec, average, average_step=None, **kwargs)
     window_duration_sec: float
         The Fourier calculation window in seconds.
 
-    average: int
-        The number of window used to estimate the sample covariance.
+    num_averaging_win: int
+        The number of windows used to estimate the sample covariance.
 
     Keyword arguments
     -----------------
@@ -313,13 +313,13 @@ def calculate(stream, window_duration_sec, average, average_step=None, **kwargs)
     times, frequencies, spectra = stft(stream, window_duration_sec, **kwargs)
 
     # Parametrization
-    step = average // 2 if average_step is None else average * average_step
+    step = num_averaging_win // 2 if average_step is None else num_averaging_win * average_step
     n_traces, n_windows, n_frequencies = spectra.shape
 
     # Times
     t_end = times[-1]
     times = times[:-1]
-    times = times[: 1 - average : step]
+    times = times[: 1 - num_averaging_win : step]
     n_average = len(times)
     times = np.hstack((times, t_end))
 
@@ -329,7 +329,7 @@ def calculate(stream, window_duration_sec, average, average_step=None, **kwargs)
 
     # Compute
     for t in range(n_average):
-        covariance[t] = xcov(t, spectra, step, average)
+        covariance[t] = xcov(t, spectra, step, num_averaging_win)
 
     # Create frequencies vector for plotting as matplotlib now requires coordinates of pixel edges
     fs = stream[0].stats.sampling_rate
@@ -441,7 +441,7 @@ def stft(
     return times, frequencies, spectra
 
 
-def xcov(wid, spectra_full, overlap, average):
+def xcov(window_index, spectra_full, step, num_averaging_win):
     """Calculation of the array covariance matrix from the array data vectors.
 
     Warning
@@ -455,25 +455,28 @@ def xcov(wid, spectra_full, overlap, average):
 
     Arguments
     ---------
-    spectra_full: :class:`numpy.ndarray`
-        The stream's spectra.
+    window_index: int
+        Index of the short, averaging window.
 
-    overlap: int
-        The average step.
+    spectra_full: :class:`numpy.ndarray`
+        The stream's spectra with shape (num_traces, num_short_windows, num_freqs). 
+
+    step: int
+        The step between short windows.
 
     average: int
         The number of averaging windows.
 
     Returns
     -------
-    :class:`numpy.ndarray`
-        The covariance matrix.
+    Sxx: :class:`numpy.ndarray`
+        The covariance matrix with shape (num_traces, num_traces, num_freqs).
     """
     n_traces, n_windows, n_frequencies = spectra_full.shape
-    beg = overlap * wid
-    end = beg + average
+    beg = step * window_index
+    end = beg + num_averaging_win
     spectra = spectra_full[:, beg:end, :].copy()
-    x = spectra[:, None, 0, :] * np.conj(spectra[:, 0, :])
-    for swid in range(1, average):
-        x += spectra[:, None, swid, :] * np.conj(spectra[:, swid, :])
-    return x
+    Sxx = spectra[:, None, :, :] * np.conj(spectra[None, :, :, :])
+    # sum along averaging window axis
+    Sxx = np.sum(Sxx, axis=2)
+    return Sxx
