@@ -469,14 +469,14 @@ def xcov(window_index, spectra_full, step, num_averaging_win):
 
     Returns
     -------
-    Sxx: :class:`numpy.ndarray`
+    Sxy: :class:`numpy.ndarray`
         The covariance matrix with shape (num_traces, num_traces, num_freqs).
     """
     n_traces, n_windows, n_frequencies = spectra_full.shape
     beg = step * window_index
     end = beg + num_averaging_win
     spectra = spectra_full[:, beg:end, :].copy()
-    Sxx = spectra[:, None, :, :] * np.conj(spectra[None, :, :, :])
+    Sxy = spectra[:, None, :, :] * np.conj(spectra[None, :, :, :])
     # sum along averaging window axis
-    Sxx = np.sum(Sxx, axis=2)
-    return Sxx
+    Sxy = np.sum(Sxy, axis=2)
+    return Sxy
